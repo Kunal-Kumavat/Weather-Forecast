@@ -1,0 +1,115 @@
+SQL Queries Answers - 
+
+1. Give the count of the minimum number of days for the time when temperature reduced?
+Ans- 
+SELECT COUNT(*) AS days
+FROM(
+SELECT D_date, minimum_temperature
+FROM cleaned_file_weather_prediction
+WHERE minimum_temperature < (SELECT avg(minimum_temperature) FROM cleaned_file_weather_prediction)
+) SQ;
+
+
+2. Find the temperature as Cold / hot by using the case and avg of values of the given data set?
+Ans-- 
+SELECT D_date, temperature AS daily_avg_temp,
+AVG(Temperature) Over (PARTITION BY EXTRACT(MONTH FROM D_DATE), EXTRACT(YEAR FROM D_date)) AS monthly_avg_temp,
+CASE
+WHEN temperature >= AVG(Temperature) OVER (PARTITION BY EXTRACT(MONTH FROM D_date), EXTRACT(YEAR FROM D_date ))
+THEN 'HOT'
+ELSE 'COLD'
+END AS temp_status
+FROM cleaned_file_weather_prediction
+GROUP BY D_date
+ORDER BY D_date;
+
+
+3. Can you check for all 4 consecutive days when the temperature was below 30 Fahrenheit?
+Ans-- 
+WITH table1 AS
+(SELECT *, 
+ROW_NUMBER() OVER (ORDER BY D_date) AS ROW_ID
+FROM cleaned_file_weather_prediction), table2 AS
+(SELECT D_date, Temperature, ROW_ID,
+ROW_NUMBER() OVER (ORDER BY D_date) AS ROW_NUM,
+ROW_ID - ROW_NUMBER() OVER (ORDER BY D_date) AS diff FROM table1
+WHERE Temperature < 30), T3 AS 
+(SELECT *, COUNT(*) OVER (PARTITION BY diff) AS conc_days FROM table2)
+SELECT D_date, Temperature FROM T3 WHERE conc_days = 4;
+
+
+4. Can you find the maximum number of days for which temperature dropped?
+Ans--
+WITH daily_temp_change AS(
+SELECT D_date, Temperature AS daily_temp, LAG(Temperature) OVER (ORDER BY D_date) AS last_temp
+FROM cleaned_file_weather_prediction
+)
+SELECT COUNT(*) AS num_days
+FROM daily_temp_change
+WHERE daily_temp < last_temp;
+
+
+5. Can you find the average of average humidity from the dataset?
+Ans-- 
+SELECT D_date , AVG (Average_humidity) AS Average_humidity
+FROM cleaned_file_weather_prediction
+GROUP BY D_date
+ORDER BY D_date;
+
+
+6. Use the GROUP BY clause on the Date column and make a query to fetch details for average windspeed ( which is now windspeed done in task 3 )?
+Ans--
+SELECT D_date, AVG(Average_windspeed) AS avg_windspeed
+FROM cleaned_file_weather_prediction
+GROUP BY D_date
+ORDER BY D_date;
+
+
+7. Please add the data in the dataset for 2034 and 2035 as well as forecast predictions for these years?
+Ans--
+WITH RECURSIVE table1 AS
+(SELECT D_date, Temperature, 
+ROW_NUMBER() OVER (ORDER BY D_DATE) AS ROW_NUM 
+FROM cleaned_file_weather_prediction ),
+table2 AS 
+(SELECT slope, y_bar_max - x_bar_max * slope AS intercept
+FROM
+(SELECT
+SUM ((ROW_NUM - x_bar) * (Temperature - y_bar)) / SUM ((ROW_NUM - x_bar) * (ROW_NUM - x_bar)) AS slope,
+MAX(x_bar) AS x_bar_max,
+MAX(y_bar) AS y_bar_max
+FROM
+(SELECT ROW_NUM, AVG(ROW_NUM) OVER() AS x_bar,
+Temperature, AVG(Temperature) OVER() AS y_bar
+FROM table1) data1
+) data2)
+SELECT prediction_data.D_date,
+ROUND ((prediction_data.ROW_NUM * (SELECT slope FROM table2) * (SELECT intercept FROM table2)), 2) AS predict_temperature
+FROM prediction_data;
+
+
+8. If the maximum gust speed increases from 55mph, fetch the details for the next 4 days?
+Ans--
+SELECT wd.D_date, wd.MAX_GUSTSPEED
+FROM cleaned_file_weather_prediction wd
+INNER JOIN (SELECT D_date FROM cleaned_file_weather_prediction WHERE MAX_GUSTSPEED >55 ) sub
+ON wd.D_date BETWEEN sub.D_date AND D_date_ADD(sub.D_date, INTERVAL 4 DAY );
+
+
+9. Find the number of days when the temperature went below 0 degrees Celsius?
+Ans--
+SELECT COUNT(*) No_of_days
+FROM cleaned_file_weather_prediction
+WHERE Temperature < 32;
+
+
+10. Create another table with a “Foreign key” relation with the existing given data set.?
+Ans--
+CREATE TABLE new(
+avg_temp int NOT NULL,
+Average_humidity int ,
+Average_dewpoint int,
+D_date date,
+PRIMARY KEY (avg_temp),
+FOREIGN KEY (D_date) REFERENCES cleaned_file_weather_prediction(D_date)
+);
